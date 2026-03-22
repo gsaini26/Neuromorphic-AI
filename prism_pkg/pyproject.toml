@@ -1,0 +1,39 @@
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name        = "prism-vflow"
+version     = "1.5.0"
+description = "ν-Flow Prism: a hardware-agnostic neuromorphic compiler for Loihi 2 and Akida"
+readme      = "README.md"
+requires-python = ">=3.10"
+license     = { text = "MIT" }
+
+keywords = [
+  "neuromorphic", "loihi2", "akida", "spiking-neural-network",
+  "lava", "v-flow", "prism", "LIF", "SNN",
+]
+
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+]
+
+# Core deps — lava-nc and akida are optional (hardware backends)
+dependencies = []
+
+[project.optional-dependencies]
+loihi2 = ["lava-nc>=0.10"]
+akida  = ["akida>=2.0"]
+dev    = ["pytest>=7", "pytest-cov"]
+
+[project.scripts]
+prism = "prism.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["prism*"]
