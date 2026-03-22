@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ν-Flow · Prism IDE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & ROOT ────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg0:#080c10;
+  --bg1:#0d1117;
+  --bg2:#131920;
+  --bg3:#1a2230;
+  --border:#1e2d3d;
+  --border2:#243344;
+  --accent:#00e5c8;
+  --accent2:#0097ff;
+  --accent3:#ff6b35;
+  --warn:#f0b429;
+  --danger:#e24b4a;
+  --text:#c9d8e8;
+  --text2:#7a93aa;
+  --text3:#3d5266;
+  --green:#1de98b;
+  --purple:#9d6aff;
+  --mono:'Space Mono',monospace;
+  --sans:'Syne',sans-serif;
+  --r:6px;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg0);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.5}
+
+/* ── SCANLINE OVERLAY ───────────────────────────────────────── */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.08) 2px,rgba(0,0,0,.08) 4px);
+}
+
+/* ── LAYOUT ──────────────────────────────────────────────────── */
+.shell{display:grid;grid-template-rows:48px 1fr;height:100vh;overflow:hidden}
+
+/* ── TOPBAR ──────────────────────────────────────────────────── */
+.topbar{
+  display:flex;align-items:center;gap:0;
+  border-bottom:1px solid var(--border);
+  background:var(--bg1);
+  padding:0 16px;
+  user-select:none;
+}
+.logo{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--sans);font-size:15px;font-weight:800;
+  color:#fff;letter-spacing:-.02em;margin-right:20px;
+}
+.logo-nu{color:var(--accent);font-style:italic}
+.logo-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+
+.tab-bar{display:flex;flex:1;height:100%;gap:0}
+.tab{
+  display:flex;align-items:center;gap:6px;
+  padding:0 16px;height:100%;cursor:pointer;
+  font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text3);border-right:1px solid var(--border);
+  transition:color .15s,background .15s;
+  white-space:nowrap;
+}
+.tab:hover{color:var(--text2);background:var(--bg2)}
+.tab.active{color:var(--accent);background:var(--bg2);border-bottom:1px solid var(--accent);margin-bottom:-1px}
+.tab-icon{font-size:13px}
+
+.topbar-right{display:flex;align-items:center;gap:8px;margin-left:auto;padding-left:16px}
+.hw-pill{
+  display:flex;align-items:center;gap:6px;
+  padding:4px 10px;border-radius:20px;
+  border:1px solid var(--border2);background:var(--bg2);
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  transition:border-color .15s;
+}
+.hw-pill:hover{border-color:var(--accent2)}
+.hw-pill.active-hw{border-color:var(--accent);color:var(--accent)}
+.hw-dot{width:5px;height:5px;border-radius:50%}
+.run-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 14px;border-radius:var(--r);
+  background:var(--accent);color:#000;
+  font-family:var(--mono);font-size:11px;font-weight:700;
+  letter-spacing:.06em;cursor:pointer;border:none;
+  transition:opacity .15s,transform .1s;
+}
+.run-btn:hover{opacity:.85}
+.run-btn:active{transform:scale(.97)}
+
+/* ── MAIN BODY ───────────────────────────────────────────────── */
+.main{display:grid;grid-template-columns:260px 1fr 320px;height:100%;overflow:hidden}
+
+/* ── LEFT PANEL ──────────────────────────────────────────────── */
+.left-panel{
+  background:var(--bg1);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.panel-hdr{
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.panel-hdr-actions{display:flex;gap:6px}
+.icon-btn{
+  width:20px;height:20px;border-radius:3px;background:transparent;
+  border:1px solid var(--border2);color:var(--text2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:11px;
+  transition:background .15s,color .15s;
+}
+.icon-btn:hover{background:var(--bg3);color:var(--accent)}
+
+/* ── MANIFOLD TREE ───────────────────────────────────────────── */
+.manifold-tree{flex:1;overflow-y:auto;padding:8px 0}
+.manifold-tree::-webkit-scrollbar{width:4px}
+.manifold-tree::-webkit-scrollbar-track{background:transparent}
+.manifold-tree::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.tree-item{
+  display:flex;align-items:center;gap:8px;
+  padding:5px 14px;cursor:pointer;
+  font-size:12px;color:var(--text2);
+  transition:background .12s,color .12s;
+  border-left:2px solid transparent;
+}
+.tree-item:hover{background:var(--bg2);color:var(--text)}
+.tree-item.selected{background:var(--bg3);color:var(--accent);border-left-color:var(--accent)}
+.tree-icon{font-size:11px;width:16px;text-align:center;flex-shrink:0}
+.tree-badge{
+  margin-left:auto;font-size:9px;padding:1px 5px;border-radius:10px;
+  background:var(--bg3);color:var(--text3);letter-spacing:.04em;
+}
+.tree-badge.cell{background:rgba(0,229,200,.1);color:var(--accent)}
+.tree-badge.flow{background:rgba(0,151,255,.1);color:var(--accent2)}
+.tree-badge.plastic{background:rgba(157,106,255,.1);color:var(--purple)}
+
+.section-label{
+  padding:10px 14px 4px;font-size:9px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--text3);
+}
+
+/* ── PRISM MAPPER PANEL (left bottom) ───────────────────────── */
+.mapper-panel{
+  border-top:1px solid var(--border);padding:12px 14px;
+  background:var(--bg0);
+}
+.mapper-title{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:10px}
+.mapper-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.mapper-label{font-size:11px;color:var(--text2);min-width:70px;flex-shrink:0}
+.mapper-bar-bg{flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;position:relative}
+.mapper-bar-fill{height:100%;border-radius:3px;transition:width .4s ease}
+.mapper-val{font-size:10px;min-width:32px;text-align:right;color:var(--text2)}
+.mapper-unit{font-size:9px;color:var(--text3)}
+.mapper-output{
+  margin-top:10px;padding:8px;border-radius:var(--r);
+  background:var(--bg2);border:1px solid var(--border);
+}
+.mapper-output-row{display:flex;justify-content:space-between;margin-bottom:3px;font-size:11px}
+.mapper-output-key{color:var(--text3)}
+.mapper-output-val{font-family:var(--mono);color:var(--green)}
+
+/* ── CENTER — EDITOR + CONSOLE ───────────────────────────────── */
+.center-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--bg1)}
+.editor-area{flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.editor-toolbar{
+  display:flex;align-items:center;gap:8px;padding:6px 14px;
+  border-bottom:1px solid var(--border);background:var(--bg1);
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);
+}
+.editor-toolbar-right{margin-left:auto;display:flex;gap:6px}
+.pill-badge{
+  padding:2px 8px;border-radius:10px;font-size:10px;
+  border:1px solid var(--border2);color:var(--text2);
+}
+.pill-badge.ok{border-color:rgba(29,233,139,.4);color:var(--green)}
+.pill-badge.err{border-color:rgba(226,75,74,.4);color:var(--danger)}
+
+/* CodeMirror-style editor */
+.code-editor{
+  flex:1;overflow:auto;padding:16px;
+  font-family:var(--mono);font-size:13px;line-height:1.7;
+  outline:none;white-space:pre;color:var(--text);
+  tab-size:4;cursor:text;
+}
+.code-editor::-webkit-scrollbar{width:6px}
+.code-editor::-webkit-scrollbar-track{background:transparent}
+.code-editor::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* Syntax tokens */
+.t-kw{color:var(--accent)}
+.t-prop{color:var(--accent2)}
+.t-val{color:var(--warn)}
+.t-unit{color:var(--accent3)}
+.t-id{color:var(--purple)}
+.t-comment{color:var(--text3);font-style:italic}
+.t-string{color:var(--green)}
+.t-brace{color:var(--text)}
+.t-rule{color:var(--green)}
+
+/* ── CONSOLE ─────────────────────────────────────────────────── */
+.console-area{
+  height:180px;border-top:1px solid var(--border);
+  display:flex;flex-direction:column;background:var(--bg0);
+  flex-shrink:0;
+}
+.console-toolbar{
+  display:flex;align-items:center;gap:8px;padding:6px 14px;
+  border-bottom:1px solid var(--border);font-size:10px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--text3);flex-shrink:0;
+}
+.console-log{
+  flex:1;overflow-y:auto;padding:8px 14px;
+  font-size:12px;line-height:1.8;
+}
+.console-log::-webkit-scrollbar{width:4px}
+.console-log::-webkit-scrollbar-thumb{background:var(--border2)}
+.log-line{display:flex;gap:10px;margin-bottom:1px}
+.log-ts{color:var(--text3);flex-shrink:0}
+.log-info{color:var(--text2)}
+.log-ok{color:var(--green)}
+.log-warn{color:var(--warn)}
+.log-err{color:var(--danger)}
+.log-data{color:var(--accent)}
+.log-spike{color:var(--purple)}
+
+/* ── RIGHT PANEL — CIRCUIT + PARAMS ─────────────────────────── */
+.right-panel{
+  background:var(--bg1);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.circuit-canvas-wrap{
+  flex:1;position:relative;overflow:hidden;
+  background:var(--bg0);
+}
+canvas#circuit{display:block;width:100%;height:100%}
+.canvas-label{
+  position:absolute;top:10px;left:14px;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);
+  pointer-events:none;
+}
+
+/* ── PARAMS PANEL ────────────────────────────────────────────── */
+.params-panel{
+  border-top:1px solid var(--border);
+  background:var(--bg1);padding:12px 14px;
+  flex-shrink:0;
+}
+.params-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.param-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r);padding:8px 10px;
+  transition:border-color .2s;
+}
+.param-card:hover{border-color:var(--border2)}
+.param-name{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
+.param-val{font-size:15px;font-weight:700;font-family:var(--mono);color:var(--text)}
+.param-val .unit{font-size:10px;color:var(--text3);font-weight:400}
+.param-bar{height:3px;background:var(--bg3);border-radius:2px;margin-top:5px;overflow:hidden}
+.param-bar-fill{height:100%;border-radius:2px;transition:width .5s}
+
+/* ── SPIKE CHART ─────────────────────────────────────────────── */
+.spike-chart-area{
+  border-top:1px solid var(--border);background:var(--bg0);
+  padding:10px 14px;flex-shrink:0;
+}
+.spike-canvas-wrap{position:relative;height:70px}
+canvas#spike{display:block;width:100%;height:100%}
+
+/* ── SCROLLBAR GLOBAL ────────────────────────────────────────── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ── ANIMATIONS ──────────────────────────────────────────────── */
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes scan{0%{transform:translateY(-100%)}100%{transform:translateY(100%)}}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.log-line{animation:fadein .2s ease}
+
+.run-indicator{
+  width:7px;height:7px;border-radius:50%;background:var(--text3);
+  flex-shrink:0;transition:background .3s;
+}
+.run-indicator.running{background:var(--green);animation:pulse-dot .8s infinite}
+.run-indicator.error{background:var(--danger)}
+
+/* ── TOOLTIP ─────────────────────────────────────────────────── */
+.tooltip{
+  position:absolute;z-index:100;padding:5px 9px;
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:var(--r);font-size:11px;color:var(--text);
+  pointer-events:none;white-space:nowrap;display:none;
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ── TOP BAR ──────────────────────────────────────────────── -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <span><span class="logo-nu">ν</span>-Flow</span>
+    <span style="color:var(--text3);font-size:12px;font-weight:400">·</span>
+    <span style="color:var(--text2);font-size:12px;font-weight:400;font-family:var(--sans)">Prism IDE</span>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab(this,'editor')"><span class="tab-icon">⬡</span> Manifold Editor</div>
+    <div class="tab" onclick="switchTab(this,'mapper')"><span class="tab-icon">◈</span> Prism Mapper</div>
+    <div class="tab" onclick="switchTab(this,'topology')"><span class="tab-icon">⬡</span> Topology</div>
+    <div class="tab" onclick="switchTab(this,'bench')"><span class="tab-icon">⚡</span> Benchmark</div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="hw-pill active-hw" id="hw-loihi" onclick="setHW('loihi')">
+      <div class="hw-dot" style="background:#00e5c8"></div> Loihi 2
+    </div>
+    <div class="hw-pill" id="hw-akida" onclick="setHW('akida')">
+      <div class="hw-dot" style="background:#0097ff"></div> Akida
+    </div>
+    <div class="hw-pill" id="hw-analog" onclick="setHW('analog')">
+      <div class="hw-dot" style="background:#ff6b35"></div> Analog
+    </div>
+    <button class="run-btn" id="run-btn" onclick="runCompile()">▶ Compile + Run</button>
+  </div>
+</div>
+
+<!-- ── MAIN ──────────────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+    <div class="panel-hdr">
+      Manifolds
+      <div class="panel-hdr-actions">
+        <div class="icon-btn" title="New manifold" onclick="addManifold()">+</div>
+        <div class="icon-btn" title="Expand all">↕</div>
+      </div>
+    </div>
+
+    <div class="manifold-tree" id="manifold-tree">
+      <div class="section-label">Language Manifolds</div>
+      <div class="tree-item selected" onclick="selectManifold(this,'word')">
+        <span class="tree-icon">⬡</span>
+        <span>WordProcessor</span>
+        <span class="tree-badge cell">LIF</span>
+      </div>
+      <div class="tree-item" onclick="selectManifold(this,'context')">
+        <span class="tree-icon">⬡</span>
+        <span>ContextResonator</span>
+        <span class="tree-badge flow">stack</span>
+      </div>
+      <div class="tree-item" onclick="selectManifold(this,'inhibit')">
+        <span class="tree-icon">⬡</span>
+        <span>InhibitoryGate</span>
+        <span class="tree-badge plastic">WTA</span>
+      </div>
+
+      <div class="section-label">Cells</div>
+      <div class="tree-item" onclick="selectManifold(this,'lifa')">
+        <span class="tree-icon">◉</span>
+        <span>LanguageNeuron_A</span>
+        <span class="tree-badge cell">vth 50</span>
+      </div>
+      <div class="tree-item" onclick="selectManifold(this,'lifb')">
+        <span class="tree-icon">◉</span>
+        <span>ContextAnchor_B</span>
+        <span class="tree-badge cell">vth 100</span>
+      </div>
+
+      <div class="section-label">Flows</div>
+      <div class="tree-item" onclick="selectManifold(this,'exc')">
+        <span class="tree-icon">→</span>
+        <span>AssociativeLink</span>
+        <span class="tree-badge flow">+10</span>
+      </div>
+      <div class="tree-item" onclick="selectManifold(this,'inh')">
+        <span class="tree-icon">⊣</span>
+        <span>InhibitoryLink</span>
+        <span class="tree-badge plastic">−100</span>
+      </div>
+    </div>
+
+    <!-- Prism Mapper mini -->
+    <div class="mapper-panel">
+      <div class="mapper-title">Prism Mapper — <span id="hw-label" style="color:var(--accent)">Loihi 2</span></div>
+      <div class="mapper-row">
+        <div class="mapper-label">v_threshold</div>
+        <div class="mapper-bar-bg"><div class="mapper-bar-fill" id="mbar-vth" style="width:62%;background:var(--accent)"></div></div>
+        <div class="mapper-val" id="mval-vth">50</div>
+        <div class="mapper-unit">→ <span id="mout-vth" style="color:var(--green)">200</span></div>
+      </div>
+      <div class="mapper-row">
+        <div class="mapper-label">v_decay</div>
+        <div class="mapper-bar-bg"><div class="mapper-bar-fill" id="mbar-dv" style="width:12%;background:var(--accent2)"></div></div>
+        <div class="mapper-val">500</div>
+        <div class="mapper-unit">→ <span style="color:var(--green)">500</span></div>
+      </div>
+      <div class="mapper-row">
+        <div class="mapper-label">w_exc</div>
+        <div class="mapper-bar-bg"><div class="mapper-bar-fill" id="mbar-we" style="width:8%;background:var(--green)"></div></div>
+        <div class="mapper-val">10</div>
+        <div class="mapper-unit">→ <span style="color:var(--green)">10</span></div>
+      </div>
+      <div class="mapper-row">
+        <div class="mapper-label">w_inh</div>
+        <div class="mapper-bar-bg"><div class="mapper-bar-fill" id="mbar-wi" style="width:78%;background:var(--danger)"></div></div>
+        <div class="mapper-val">−100</div>
+        <div class="mapper-unit">→ <span style="color:var(--danger)">−100</span></div>
+      </div>
+      <div class="mapper-output" id="mapper-output">
+        <div class="mapper-output-row"><span class="mapper-output-key">backend</span><span class="mapper-output-val">Loihi2SimCfg()</span></div>
+        <div class="mapper-output-row"><span class="mapper-output-key">model</span><span class="mapper-output-val">fixed_pt + v_bits=32</span></div>
+        <div class="mapper-output-row"><span class="mapper-output-key">floor</span><span class="mapper-output-val">−2^9 = −512</span></div>
+        <div class="mapper-output-row"><span class="mapper-output-key">decay%</span><span class="mapper-output-val">12.2% / step</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER PANEL -->
+  <div class="center-panel">
+    <div class="editor-area">
+      <div class="editor-toolbar">
+        <span>ν-Flow Source</span>
+        <span style="color:var(--text3)">·</span>
+        <span id="file-name" style="color:var(--text2)">word_processor.vf</span>
+        <div class="editor-toolbar-right">
+          <div class="pill-badge ok" id="syntax-badge">✓ syntax ok</div>
+          <div class="pill-badge" id="compile-badge">compiled</div>
+        </div>
+      </div>
+      <div class="code-editor" id="code-editor" contenteditable="true" spellcheck="false" oninput="onEditorChange()" onkeydown="editorKeyDown(event)"></div>
+    </div>
+
+    <div class="console-area">
+      <div class="console-toolbar">
+        <div class="run-indicator" id="run-indicator"></div>
+        <span>Prism Console</span>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <div class="icon-btn" onclick="clearConsole()" title="Clear">✕</div>
+        </div>
+      </div>
+      <div class="console-log" id="console-log"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="panel-hdr">Circuit Topology</div>
+    <div class="circuit-canvas-wrap">
+      <div class="canvas-label">Live Manifold Graph</div>
+      <canvas id="circuit"></canvas>
+    </div>
+
+    <div class="spike-chart-area">
+      <div class="panel-hdr" style="padding:0 0 8px;border:none">
+        Spike Trace
+        <span style="margin-left:auto;font-size:10px;color:var(--text3)" id="step-counter">step 0 / 25</span>
+      </div>
+      <div class="spike-canvas-wrap">
+        <canvas id="spike"></canvas>
+      </div>
+    </div>
+
+    <div class="params-panel">
+      <div class="panel-hdr" style="padding:0 0 10px;border:none">Live Parameters</div>
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-name">V_A current</div>
+          <div class="param-val" id="pv-va">0.0 <span class="unit">mV</span></div>
+          <div class="param-bar"><div class="param-bar-fill" id="pb-va" style="width:0%;background:var(--accent)"></div></div>
+        </div>
+        <div class="param-card">
+          <div class="param-name">V_B current</div>
+          <div class="param-val" id="pv-vb">0.0 <span class="unit">mV</span></div>
+          <div class="param-bar"><div class="param-bar-fill" id="pb-vb" style="width:0%;background:var(--accent2)"></div></div>
+        </div>
+        <div class="param-card">
+          <div class="param-name">A fires</div>
+          <div class="param-val" id="pv-fa">0 <span class="unit">spikes</span></div>
+          <div class="param-bar"><div class="param-bar-fill" id="pb-fa" style="width:0%;background:var(--green)"></div></div>
+        </div>
+        <div class="param-card">
+          <div class="param-name">Energy est.</div>
+          <div class="param-val" id="pv-energy">0.0 <span class="unit">µJ</span></div>
+          <div class="param-bar"><div class="param-bar-fill" id="pb-energy" style="width:0%;background:var(--warn)"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+/* ──────────────────────────────────────────────────────────────
+   ν-FLOW DEFAULT SOURCE CODE
+─────────────────────────────────────────────────────────────── */
+const VFLOW_SRC = {
+word: `<span class="t-comment">// v-Flow 1.5 · Silicon-Safe Design</span>
+<span class="t-comment">// Target: Loihi 2 via Prism → fixed_pt + v_bits=32</span>
+
+<span class="t-kw">manifold</span> <span class="t-id">WordProcessor</span> <span class="t-brace">{</span>
+
+  <span class="t-comment">// ── Cell Definitions ─────────────────────────</span>
+  <span class="t-kw">cell</span> <span class="t-id">LanguageNeuron_A</span> <span class="t-brace">{</span>
+    <span class="t-prop">v_threshold</span><span class="t-brace">:</span> <span class="t-val">50</span><span class="t-unit">mV</span><span class="t-brace">;</span>      <span class="t-comment">// 5 spikes to fire</span>
+    <span class="t-prop">v_decay</span><span class="t-brace">:</span>     <span class="t-val">500</span><span class="t-brace">;</span>         <span class="t-comment">// 12.2% leak — fast forget</span>
+    <span class="t-prop">v_min_exp</span><span class="t-brace">:</span>  <span class="t-val">9</span><span class="t-brace">;</span>           <span class="t-comment">// floor −2^9 = −512 (silicon floor)</span>
+    <span class="t-prop">role</span><span class="t-brace">:</span>       <span class="t-string">"meaning"</span><span class="t-brace">;</span>
+  <span class="t-brace">}</span>
+
+  <span class="t-kw">cell</span> <span class="t-id">ContextAnchor_B</span> <span class="t-brace">{</span>
+    <span class="t-prop">v_threshold</span><span class="t-brace">:</span> <span class="t-val">100</span><span class="t-unit">mV</span><span class="t-brace">;</span>     <span class="t-comment">// 10 spikes to fire</span>
+    <span class="t-prop">v_decay</span><span class="t-brace">:</span>     <span class="t-val">0</span><span class="t-brace">;</span>           <span class="t-comment">// zero leak — frozen anchor</span>
+    <span class="t-prop">role</span><span class="t-brace">:</span>       <span class="t-string">"context"</span><span class="t-brace">;</span>
+  <span class="t-brace">}</span>
+
+  <span class="t-comment">// ── Flow Definitions ─────────────────────────</span>
+  <span class="t-kw">flow</span> <span class="t-id">AssociativeLink</span> <span class="t-brace">{</span>
+    <span class="t-prop">type</span><span class="t-brace">:</span>        <span class="t-string">Excitatory</span><span class="t-brace">;</span>
+    <span class="t-prop">init_weight</span><span class="t-brace">:</span> <span class="t-val">+10</span><span class="t-unit">mV</span><span class="t-brace">;</span>      <span class="t-comment">// quiet whisper</span>
+    <span class="t-prop">target</span><span class="t-brace">:</span>     <span class="t-id">LanguageNeuron_A</span><span class="t-brace">;</span>
+  <span class="t-brace">}</span>
+
+  <span class="t-kw">flow</span> <span class="t-id">InhibitoryLink</span> <span class="t-brace">{</span>
+    <span class="t-prop">type</span><span class="t-brace">:</span>        <span class="t-string">Inhibitory</span><span class="t-brace">;</span>
+    <span class="t-prop">init_weight</span><span class="t-brace">:</span> <span class="t-val">-100</span><span class="t-unit">mV</span><span class="t-brace">;</span>     <span class="t-comment">// loud shout (10:1 ratio)</span>
+    <span class="t-prop">source</span><span class="t-brace">:</span>     <span class="t-id">ContextAnchor_B</span><span class="t-brace">;</span>
+    <span class="t-prop">target</span><span class="t-brace">:</span>     <span class="t-id">LanguageNeuron_A</span><span class="t-brace">;</span>
+  <span class="t-brace">}</span>
+
+  <span class="t-comment">// ── Context Stack ────────────────────────────</span>
+  <span class="t-kw">stack</span> <span class="t-id">ContextResonator</span> <span class="t-brace">{</span>
+    <span class="t-prop">depth</span><span class="t-brace">:</span>       <span class="t-val">4096</span><span class="t-brace">;</span>
+    <span class="t-prop">persistence</span><span class="t-brace">:</span> <span class="t-val">500</span><span class="t-unit">ms</span><span class="t-brace">;</span>
+    <span class="t-prop">rule</span><span class="t-brace">:</span>       <span class="t-rule">Hebbian</span><span class="t-brace">;</span>
+  <span class="t-brace">}</span>
+
+  <span class="t-comment">// ── Pulse Logic ──────────────────────────────</span>
+  <span class="t-kw">on</span> <span class="t-id">Pulse</span><span class="t-brace">(</span><span class="t-id">input_token</span><span class="t-brace">) {</span>
+    <span class="t-id">LanguageNeuron_A</span><span class="t-brace">.</span><span class="t-prop">v_state</span> <span class="t-brace">+=</span> <span class="t-id">input_token</span> <span class="t-brace">*</span> <span class="t-id">AssociativeLink</span><span class="t-brace">.</span><span class="t-prop">weight</span><span class="t-brace">;</span>
+    <span class="t-kw">if</span> <span class="t-brace">(</span><span class="t-id">ContextAnchor_B</span><span class="t-brace">.</span><span class="t-prop">fired</span><span class="t-brace">) {</span>
+      <span class="t-kw">emit</span> <span class="t-id">InhibitoryLink</span><span class="t-brace">;</span>       <span class="t-comment">// gate the meaning</span>
+    <span class="t-brace">}</span>
+    <span class="t-kw">emit</span> <span class="t-id">Pulse</span><span class="t-brace">(</span><span class="t-id">next_manifold</span><span class="t-brace">);</span>
+  <span class="t-brace">}</span>
+<span class="t-brace">}</span>`,
+
+context:`<span class="t-comment">// Context Resonator Stack</span>
+<span class="t-kw">stack</span> <span class="t-id">ContextResonator</span> <span class="t-brace">{</span>
+  <span class="t-prop">depth</span><span class="t-brace">:</span>       <span class="t-val">4096</span><span class="t-brace">;</span>
+  <span class="t-prop">persistence</span><span class="t-brace">:</span> <span class="t-val">500</span><span class="t-unit">ms</span><span class="t-brace">;</span>
+  <span class="t-prop">rule</span><span class="t-brace">:</span>        <span class="t-rule">Hebbian</span><span class="t-brace">;</span>
+  <span class="t-prop">plasticity</span><span class="t-brace">:</span>  <span class="t-val">true</span><span class="t-brace">;</span>
+<span class="t-brace">}</span>`,
+
+inhibit:`<span class="t-comment">// Inhibitory Gate (Winner-Take-All)</span>
+<span class="t-kw">manifold</span> <span class="t-id">InhibitoryGate</span> <span class="t-brace">{</span>
+  <span class="t-kw">flow</span> <span class="t-id">InhibitoryLink</span> <span class="t-brace">{</span>
+    <span class="t-prop">type</span><span class="t-brace">:</span>        <span class="t-string">Inhibitory</span><span class="t-brace">;</span>
+    <span class="t-prop">init_weight</span><span class="t-brace">:</span> <span class="t-val">-100</span><span class="t-unit">mV</span><span class="t-brace">;</span>
+    <span class="t-prop">rule</span><span class="t-brace">:</span>        <span class="t-rule">WTA</span><span class="t-brace">;</span>
+  <span class="t-brace">}</span>
+<span class="t-brace">}</span>`,
+};
+
+/* ──────────────────────────────────────────────────────────────
+   SIMULATION ENGINE
+─────────────────────────────────────────────────────────────── */
+const SIM = {
+  W_EXC:10, W_INH:-100, VTH_A:50, VTH_B:100,
+  DV_A:500, DV_B:0, FLOOR:-512, STEPS:25,
+  va:0, vb:0, step:0, running:false,
+  histA:[], histB:[], firesA:0, firesB:0,
+  totalSpikes:0, energyJoules:0,
+
+  reset(){
+    this.va=0;this.vb=0;this.step=0;
+    this.histA=[];this.histB=[];this.firesA=0;this.firesB=0;
+    this.totalSpikes=0;this.energyJoules=0;
+  },
+  tick(){
+    const kA=(4096-this.DV_A)/4096;
+    const kB=(4096-this.DV_B)/4096;
+    this.va*=kA; this.vb*=kB;
+    this.va+=this.W_EXC; this.vb+=this.W_EXC;
+    let bFired=false;
+    if(this.vb>=this.VTH_B){this.vb=0;bFired=true;this.firesB++;this.totalSpikes++;}
+    if(bFired){this.va+=this.W_INH;}
+    this.va=Math.max(this.va,this.FLOOR);
+    let aFired=false;
+    if(this.va>=this.VTH_A){this.va=0;aFired=true;this.firesA++;this.totalSpikes++;}
+    this.histA.push({v:Math.round(this.va*100)/100,fired:aFired});
+    this.histB.push({v:Math.round(this.vb*100)/100,fired:bFired});
+    this.step++;
+    // Energy: spike costs 1pJ on Loihi2 vs ~100nJ on GPU
+    this.energyJoules+=(aFired||bFired)?0.001:0.00002;
+    return {va:this.va,vb:this.vb,aFired,bFired};
+  }
+};
+
+/* ──────────────────────────────────────────────────────────────
+   CIRCUIT CANVAS
+─────────────────────────────────────────────────────────────── */
+let circuitCtx, spikeCtx;
+const NODES = {
+  source: {x:0.15,y:0.35,label:'Source',color:'#7a93aa',sub:'RingBuffer'},
+  exc:    {x:0.38,y:0.35,label:'dense_exc',color:'#1de98b',sub:'+10'},
+  neuronA:{x:0.62,y:0.35,label:'Neuron A',color:'#00e5c8',sub:'LIF vth=50',active:false},
+  denseB: {x:0.38,y:0.70,label:'dense_b',color:'#1de98b',sub:'+10'},
+  neuronB:{x:0.62,y:0.70,label:'Neuron B',color:'#0097ff',sub:'LIF vth=100',active:false},
+  inh:    {x:0.82,y:0.52,label:'dense_inh',color:'#e24b4a',sub:'−100'},
+};
+
+const EDGES = [
+  {from:'source',to:'exc',color:'#1de98b'},
+  {from:'exc',to:'neuronA',color:'#1de98b'},
+  {from:'source',to:'denseB',color:'#1de98b'},
+  {from:'denseB',to:'neuronB',color:'#0097ff'},
+  {from:'neuronB',to:'inh',color:'#e24b4a',dash:true},
+  {from:'inh',to:'neuronA',color:'#e24b4a',dash:true},
+];
+
+function drawCircuit(aFired, bFired){
+  if(!circuitCtx)return;
+  const c=circuitCtx, W=c.canvas.width, H=c.canvas.height;
+  c.clearRect(0,0,W,H);
+
+  // Grid dots
+  c.fillStyle='rgba(30,45,61,.5)';
+  for(let x=0;x<W;x+=24)for(let y=0;y<H;y+=24){
+    c.beginPath();c.arc(x,y,1,0,Math.PI*2);c.fill();
+  }
+
+  // Edges
+  EDGES.forEach(e=>{
+    const f=NODES[e.from], t=NODES[e.to];
+    const fx=f.x*W, fy=f.y*H, tx=t.x*W, ty=t.y*H;
+    c.save();
+    c.strokeStyle=e.color;c.lineWidth=1.5;c.globalAlpha=0.5;
+    if(e.dash)c.setLineDash([5,4]);
+    c.beginPath();c.moveTo(fx,fy);c.lineTo(tx,ty);c.stroke();
+    // Arrow
+    const angle=Math.atan2(ty-fy,tx-fx);
+    const ex=tx-18*Math.cos(angle), ey=ty-18*Math.sin(angle);
+    c.setLineDash([]);c.globalAlpha=0.7;
+    c.beginPath();
+    c.moveTo(ex+8*Math.cos(angle),ey+8*Math.sin(angle));
+    c.lineTo(ex-5*Math.cos(angle-0.4),ey-5*Math.sin(angle-0.4));
+    c.lineTo(ex-5*Math.cos(angle+0.4),ey-5*Math.sin(angle+0.4));
+    c.closePath();c.fillStyle=e.color;c.fill();
+    c.restore();
+  });
+
+  // Nodes
+  Object.entries(NODES).forEach(([k,n])=>{
+    const nx=n.x*W, ny=n.y*H;
+    const isA=(k==='neuronA'), isB=(k==='neuronB');
+    const fired=(isA&&aFired)||(isB&&bFired);
+    const glow=fired?24:isA?12:isB?10:8;
+
+    // Glow
+    if(fired){
+      const g=c.createRadialGradient(nx,ny,0,nx,ny,glow*2);
+      g.addColorStop(0,n.color+'88');g.addColorStop(1,'transparent');
+      c.fillStyle=g;c.beginPath();c.arc(nx,ny,glow*2,0,Math.PI*2);c.fill();
+    }
+
+    // Node circle
+    c.save();
+    c.beginPath();c.arc(nx,ny,fired?glow:isA||isB?14:10,0,Math.PI*2);
+    c.fillStyle=fired?n.color:k==='neuronA'||k==='neuronB'?'#1a2230':'#0d1117';
+    c.strokeStyle=n.color;c.lineWidth=fired?2:1;
+    c.globalAlpha=fired?1:.85;
+    c.fill();c.stroke();c.restore();
+
+    // Label
+    c.save();
+    c.fillStyle=fired?'#000':n.color;
+    c.font=`700 10px 'Space Mono'`;
+    c.textAlign='center';c.textBaseline='middle';
+    if(fired)c.fillText('⚡',nx,ny);
+    c.restore();
+
+    // Text label below
+    c.save();
+    c.fillStyle=n.color;c.font=`700 10px 'Space Mono'`;
+    c.textAlign='center';c.textBaseline='top';c.globalAlpha=.9;
+    c.fillText(n.label,nx,ny+18);
+    c.fillStyle='#3d5266';c.font=`400 9px 'Space Mono'`;
+    c.fillText(n.sub,nx,ny+30);
+    c.restore();
+  });
+
+  // V_A voltage bar overlay
+  if(SIM.histA.length>0){
+    const va=SIM.va, maxV=SIM.VTH_A;
+    const nx=NODES.neuronA.x*W, ny=NODES.neuronA.y*H;
+    const pct=Math.min(1,Math.max(0,(va+100)/(maxV+100)));
+    c.save();
+    c.fillStyle=va<0?'#e24b4a44':'#00e5c844';
+    c.fillRect(nx-30,ny-6,60*pct,4);
+    c.strokeStyle=va<0?'#e24b4a':'#00e5c8';c.lineWidth=1;
+    c.strokeRect(nx-30,ny-6,60,4);
+    c.restore();
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   SPIKE CHART
+─────────────────────────────────────────────────────────────── */
+function drawSpike(){
+  if(!spikeCtx)return;
+  const c=spikeCtx, W=c.canvas.width, H=c.canvas.height;
+  c.clearRect(0,0,W,H);
+  const maxV=SIM.VTH_A, minV=SIM.FLOOR;
+  const range=maxV-minV;
+  const toY=v=>H-((v-minV)/range)*H;
+  const stepW=W/SIM.STEPS;
+
+  // Zero line
+  c.strokeStyle='rgba(61,82,102,.6)';c.lineWidth=1;c.setLineDash([3,3]);
+  c.beginPath();c.moveTo(0,toY(0));c.lineTo(W,toY(0));c.stroke();
+  c.setLineDash([]);
+
+  // vth_A line
+  c.strokeStyle='rgba(0,229,200,.2)';c.lineWidth=1;c.setLineDash([4,4]);
+  c.beginPath();c.moveTo(0,toY(maxV));c.lineTo(W,toY(maxV));c.stroke();
+  c.setLineDash([]);
+
+  // V_A trace
+  if(SIM.histA.length>1){
+    c.beginPath();c.strokeStyle='#00e5c8';c.lineWidth=1.5;
+    SIM.histA.forEach((p,i)=>{
+      const x=i*stepW,y=toY(p.v);
+      i===0?c.moveTo(x,y):c.lineTo(x,y);
+    });
+    c.stroke();
+  }
+
+  // V_B trace
+  if(SIM.histB.length>1){
+    c.beginPath();c.strokeStyle='#0097ff';c.lineWidth=1;c.globalAlpha=.7;
+    SIM.histB.forEach((p,i)=>{
+      const x=i*stepW,y=toY(Math.min(p.v,maxV));
+      i===0?c.moveTo(x,y):c.lineTo(x,y);
+    });
+    c.stroke();c.globalAlpha=1;
+  }
+
+  // Spike markers
+  SIM.histA.forEach((p,i)=>{
+    if(p.fired){
+      const x=i*stepW;
+      c.fillStyle='#00e5c8';
+      c.beginPath();c.arc(x,8,3,0,Math.PI*2);c.fill();
+    }
+  });
+  SIM.histB.forEach((p,i)=>{
+    if(p.fired){
+      const x=i*stepW;
+      c.fillStyle='#0097ff';
+      c.beginPath();c.arc(x,16,3,0,Math.PI*2);c.fill();
+    }
+  });
+}
+
+/* ──────────────────────────────────────────────────────────────
+   CONSOLE LOGGING
+─────────────────────────────────────────────────────────────── */
+function log(msg,type='info',ts=null){
+  const el=document.getElementById('console-log');
+  const now=ts||new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const div=document.createElement('div');
+  div.className='log-line';
+  div.innerHTML=`<span class="log-ts">${now}</span><span class="log-${type}">${msg}</span>`;
+  el.appendChild(div);
+  el.scrollTop=el.scrollHeight;
+}
+function clearConsole(){document.getElementById('console-log').innerHTML=''}
+
+/* ──────────────────────────────────────────────────────────────
+   COMPILE & RUN
+─────────────────────────────────────────────────────────────── */
+let runTimer=null;
+function runCompile(){
+  if(SIM.running){
+    clearInterval(runTimer);SIM.running=false;
+    document.getElementById('run-indicator').className='run-indicator';
+    document.getElementById('run-btn').textContent='▶ Compile + Run';
+    return;
+  }
+  SIM.reset();
+  document.getElementById('run-btn').textContent='■ Stop';
+  document.getElementById('run-indicator').className='run-indicator running';
+  document.getElementById('compile-badge').textContent='compiling…';
+  document.getElementById('compile-badge').className='pill-badge';
+
+  log('Prism compiler v1.5 initialising…','info');
+  setTimeout(()=>{
+    log(`Target backend: <b style="color:var(--accent)">${currentHW.toUpperCase()}</b> — fixed_pt + v_bits=32`,'ok');
+    log('Lexer: parsing ν-Flow manifold AST…','info');
+  },150);
+  setTimeout(()=>{
+    log('Quantization pass: W_exc=+10 W_inh=−100 → 8-bit safe ✓','ok');
+    log('Floor mapping: v_min_exp=9 → clamp at −512 ✓','ok');
+    log('Decay check: dv_A=500 (12.2%/step) matched to inhibition depth ✓','ok');
+    document.getElementById('compile-badge').textContent='✓ compiled';
+    document.getElementById('compile-badge').className='pill-badge ok';
+    log('Lava process graph: source → dense_exc → neuron_A ⊣ neuron_B','data');
+    log('Starting simulation: 25 steps…','info');
+    SIM.running=true;
+    runTimer=setInterval(simStep,160);
+  },600);
+}
+
+function simStep(){
+  if(SIM.step>=SIM.STEPS){
+    clearInterval(runTimer);SIM.running=false;
+    document.getElementById('run-indicator').className='run-indicator';
+    document.getElementById('run-btn').textContent='▶ Compile + Run';
+    log(`Simulation complete — A fired ${SIM.firesA}× · B fired ${SIM.firesB}× · total spikes: ${SIM.totalSpikes}`,'ok');
+    log(`Energy estimate: ${SIM.energyJoules.toFixed(4)} µJ (vs ~${(SIM.totalSpikes*0.1+SIM.STEPS*0.01).toFixed(3)} µJ GPU equiv.)`,'data');
+    log(`Sparsity: ${(100-SIM.totalSpikes/(SIM.STEPS*2)*100).toFixed(1)}% neurons silent per step`,'spike');
+    return;
+  }
+  const r=SIM.tick();
+
+  // Console
+  const va=r.va.toFixed(1), vb=r.vb.toFixed(1);
+  const evtA=r.aFired?'<span style="color:var(--green)">⚡ A FIRES</span>':r.va<0?'<span style="color:var(--danger)">↓ inhibited</span>':'';
+  const evtB=r.bFired?'<span style="color:var(--accent2)">⚡ B FIRES</span>':'';
+  log(`step ${String(SIM.step).padStart(2,'0')} · V_A=<span style="color:var(--accent)">${va}</span> V_B=<span style="color:var(--accent2)">${vb}</span>  ${evtA} ${evtB}`,'info');
+
+  // Update params
+  const vaAbs=Math.abs(SIM.va);
+  document.getElementById('pv-va').innerHTML=`${SIM.va.toFixed(1)} <span class="unit">mV</span>`;
+  document.getElementById('pb-va').style.width=`${Math.min(100,vaAbs/SIM.VTH_A*100)}%`;
+  document.getElementById('pb-va').style.background=SIM.va<0?'var(--danger)':'var(--accent)';
+  document.getElementById('pv-vb').innerHTML=`${SIM.vb.toFixed(1)} <span class="unit">mV</span>`;
+  document.getElementById('pb-vb').style.width=`${Math.min(100,SIM.vb/SIM.VTH_B*100)}%`;
+  document.getElementById('pv-fa').innerHTML=`${SIM.firesA} <span class="unit">spikes</span>`;
+  document.getElementById('pb-fa').style.width=`${Math.min(100,SIM.firesA/5*100)}%`;
+  document.getElementById('pv-energy').innerHTML=`${SIM.energyJoules.toFixed(3)} <span class="unit">µJ</span>`;
+  document.getElementById('pb-energy').style.width=`${Math.min(100,SIM.energyJoules/0.05*100)}%`;
+  document.getElementById('step-counter').textContent=`step ${SIM.step} / ${SIM.STEPS}`;
+
+  drawCircuit(r.aFired,r.bFired);
+  drawSpike();
+}
+
+/* ──────────────────────────────────────────────────────────────
+   HARDWARE TARGET
+─────────────────────────────────────────────────────────────── */
+let currentHW='loihi';
+const HW_CONFIGS={
+  loihi:{label:'Loihi 2',backend:'Loihi2SimCfg()',model:'fixed_pt + v_bits=32',floor:'−2^9 = −512',decay:'12.2% / step'},
+  akida:{label:'Akida AKD1000',backend:'akida.Model()',model:'digital 8-bit SNN',floor:'uint8 clip',decay:'quantized step'},
+  analog:{label:'Analog / Memristor',backend:'PrismAnalog()',model:'voltage-native',floor:'rail clamp',decay:'RC time const'},
+};
+function setHW(hw){
+  currentHW=hw;
+  ['loihi','akida','analog'].forEach(h=>{
+    document.getElementById('hw-'+h).className='hw-pill'+(h===hw?' active-hw':'');
+  });
+  document.getElementById('hw-label').textContent=HW_CONFIGS[hw].label;
+  const c=HW_CONFIGS[hw];
+  document.getElementById('mapper-output').innerHTML=`
+    <div class="mapper-output-row"><span class="mapper-output-key">backend</span><span class="mapper-output-val">${c.backend}</span></div>
+    <div class="mapper-output-row"><span class="mapper-output-key">model</span><span class="mapper-output-val">${c.model}</span></div>
+    <div class="mapper-output-row"><span class="mapper-output-key">floor</span><span class="mapper-output-val">${c.floor}</span></div>
+    <div class="mapper-output-row"><span class="mapper-output-key">decay%</span><span class="mapper-output-val">${c.decay}</span></div>`;
+  log(`Hardware target switched → ${c.label}`,'warn');
+}
+
+/* ──────────────────────────────────────────────────────────────
+   MANIFOLD TREE SELECTION
+─────────────────────────────────────────────────────────────── */
+function selectManifold(el,key){
+  document.querySelectorAll('.tree-item').forEach(t=>t.classList.remove('selected'));
+  el.classList.add('selected');
+  const src=VFLOW_SRC[key];
+  if(src)document.getElementById('code-editor').innerHTML=src;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   EDITOR
+─────────────────────────────────────────────────────────────── */
+function onEditorChange(){
+  // Live syntax badge
+  const txt=document.getElementById('code-editor').innerText;
+  const ok=txt.includes('manifold')||txt.includes('cell')||txt.includes('flow')||txt.includes('stack');
+  const badge=document.getElementById('syntax-badge');
+  badge.textContent=ok?'✓ syntax ok':'⚠ check syntax';
+  badge.className='pill-badge'+(ok?' ok':' err');
+}
+
+function editorKeyDown(e){
+  if(e.key==='Tab'){
+    e.preventDefault();
+    document.execCommand('insertText',false,'  ');
+  }
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){
+    e.preventDefault();runCompile();
+  }
+}
+
+function addManifold(){
+  const name=`Manifold_${Date.now().toString(36).slice(-4)}`;
+  log(`New manifold created: ${name}`,'info');
+  const tree=document.getElementById('manifold-tree');
+  const div=document.createElement('div');
+  div.className='tree-item';
+  div.innerHTML=`<span class="tree-icon">⬡</span><span>${name}</span><span class="tree-badge">new</span>`;
+  div.onclick=()=>{
+    document.querySelectorAll('.tree-item').forEach(t=>t.classList.remove('selected'));
+    div.classList.add('selected');
+    document.getElementById('code-editor').innerHTML=`<span class="t-comment">// New manifold: ${name}</span>\n<span class="t-kw">manifold</span> <span class="t-id">${name}</span> <span class="t-brace">{</span>\n  \n<span class="t-brace">}</span>`;
+  };
+  tree.insertBefore(div, tree.querySelector('.section-label:nth-of-type(2)'));
+}
+
+function switchTab(el, tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  if(tab==='mapper') log('Prism Mapper view activated — adjust parameters in left panel','info');
+  if(tab==='topology') log('Topology view: circuit graph rendered in right panel','info');
+  if(tab==='bench') log('Benchmark tab: run a simulation to see energy estimates','info');
+}
+
+/* ──────────────────────────────────────────────────────────────
+   CANVAS INIT & RESIZE
+─────────────────────────────────────────────────────────────── */
+function initCanvases(){
+  const cc=document.getElementById('circuit');
+  const sc=document.getElementById('spike');
+  function resizeCC(){
+    const r=cc.parentElement.getBoundingClientRect();
+    cc.width=r.width*devicePixelRatio;cc.height=r.height*devicePixelRatio;
+    cc.style.width=r.width+'px';cc.style.height=r.height+'px';
+    circuitCtx=cc.getContext('2d');circuitCtx.scale(devicePixelRatio,devicePixelRatio);
+    drawCircuit(false,false);
+  }
+  function resizeSC(){
+    const r=sc.parentElement.getBoundingClientRect();
+    sc.width=r.width*devicePixelRatio;sc.height=r.height*devicePixelRatio;
+    sc.style.width=r.width+'px';sc.style.height=r.height+'px';
+    spikeCtx=sc.getContext('2d');spikeCtx.scale(devicePixelRatio,devicePixelRatio);
+    drawSpike();
+  }
+  resizeCC();resizeSC();
+  new ResizeObserver(resizeCC).observe(cc.parentElement);
+  new ResizeObserver(resizeSC).observe(sc.parentElement);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   BOOT
+─────────────────────────────────────────────────────────────── */
+window.addEventListener('load',()=>{
+  initCanvases();
+  document.getElementById('code-editor').innerHTML=VFLOW_SRC.word;
+  log('ν-Flow · Prism IDE v1.5 initialised','ok');
+  log('Hardware target: <b style="color:var(--accent)">Loihi 2</b> (fixed_pt + v_bits=32)','info');
+  log('Loaded manifold: WordProcessor · 2 cells · 2 flows · 1 stack','data');
+  log('Press Ctrl+Enter or click ▶ Compile + Run to simulate','info');
+  // Keyboard shortcut hint
+  document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key==='Enter')runCompile();
+  });
+});
+</script>
+</body>
+</html>
